@@ -6,6 +6,7 @@ import Dashboard from "./components/dashboard/dashboard.jsx";
 // import Reports from "../pages/Reports";
 // import Settings from "../pages/Settings";
 import Login from "./components/login/login.jsx";
+import BookManagement from "./components/books/books.jsx";
 
 const router = createBrowserRouter([
   {
@@ -14,7 +15,7 @@ const router = createBrowserRouter([
     children: [
       { index: true,            element: <Dashboard /> },
     //   { path: "users",          element: <Users /> },
-    //   { path: "books",          element: <Books /> },
+      { path: "books",          element: <BookManagement /> },
     //   { path: "reports",        element: <Reports /> },
     //   { path: "settings",       element: <Settings /> },
     ],
