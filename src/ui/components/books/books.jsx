@@ -1,11 +1,11 @@
 // ============================================================
 //  BookManagement.jsx  –  outlet only (no layout / sidebar)
-//  Requires: ConfirmDeleteDialog.jsx  &  EditBookDialog.jsx
+//  Requires: ConfirmDeleteDialog.jsx  &  EditDialog.jsx
 // ============================================================
 
 import { useState } from "react";
 import ConfirmDeleteDialog from "../dialogue/deleteDialogue";
-import EditBookDialog      from "../dialogue/editDialogue";
+import EditDialog      from "../dialogue/editDialogue";
 
 // ─────────────────────────────────────────────
 // 1. STAT CARD
@@ -355,7 +355,7 @@ function BookTable({ books: initialBooks = [], totalEntries = 0 }) {
       <BookViewDrawer book={viewBook} onClose={() => setViewBook(null)} />
 
       {/* ── Edit Dialog ── */}
-      <EditBookDialog
+      <EditDialog
         isOpen={editOpen}
         onClose={() => setEditOpen(false)}
         onSave={handleSave}
@@ -481,7 +481,7 @@ export default function BookManagement() {
       </div>
 
       {/* Add New Book dialog (header button) */}
-      <EditBookDialog
+      <EditDialog
         isOpen={addOpen}
         onClose={() => setAddOpen(false)}
         onSave={(newBook) => console.log("New book:", newBook)}

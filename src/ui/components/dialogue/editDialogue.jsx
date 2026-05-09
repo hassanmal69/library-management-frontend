@@ -57,7 +57,7 @@ const inputCls =
  * @param {Function} onSave   – called with updated book object
  * @param {object}   book     – book to edit; pass null for "Add New Book" mode
  */
-export default function EditBookDialog({ isOpen, onClose, onSave, book }) {
+export default function EditDialog({ isOpen, onClose, onSave, book }) {
   const isAddMode = !book;
   const [form, setForm] = useState(EMPTY_FORM);
   const [errors, setErrors] = useState({});

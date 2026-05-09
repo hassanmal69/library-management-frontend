@@ -70,7 +70,7 @@ export default function ConfirmDeleteDialog({
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Top accent bar ── */}
-        <div className="h-1.5 w-full bg-gradient-to-r from-red-500 to-rose-400" />
+        <div className="h-1.5 w-full bg-linear-to-r from-red-500 to-rose-400" />
 
         {/* ── Body ── */}
         <div className="px-6 pt-6 pb-5">
