@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { LoginHandle } from "../../services/login";
+import { useNavigate } from "react-router-dom";
 
 const EyeIcon = ({ open }) =>
   open ? (
@@ -32,6 +34,7 @@ export default function IntellectualAtelierLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [submitted, setSubmitted] = useState(false);
+  const navigate = useNavigate();
 
   const validate = () => {
     const errs = {};
@@ -54,11 +57,16 @@ export default function IntellectualAtelierLogin() {
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: undefined }));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const errs = validate();
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
       return;
+    }
+    const response = await LoginHandle(form);
+    if(response.token) {
+      localStorage.setItem("token", response.token);
+      navigate("/");
     }
     setErrors({});
     setSubmitted(true);

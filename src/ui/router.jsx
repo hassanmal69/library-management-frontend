@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router-dom";
+import { createHashRouter } from "react-router-dom";
 import Layout from "./components/layout/layout.jsx";
 import Dashboard from "./components/dashboard/dashboard.jsx";
 import Login from "./components/login/login.jsx";
@@ -9,25 +9,36 @@ import CirculationDesk from "./components/circulationDesk/circulation.jsx";
 import PlatformSettings from "./components/settings/setting.jsx";
 import Notworking from "./components/notworking/notworking.jsx";
 
-const router = createBrowserRouter([
-  {
-    path: "/",
-    element: <Layout />,
-    children: [
-      { index: true, element: <Dashboard /> },
-      { path: "users", element: <UsersManagement /> },
-      { path: "books", element: <BookManagement /> },
-      { path: "catalog", element: <SearchCatalog /> },
-      { path: "issue", element: <CirculationDesk /> },
-      { path: "settings", element: <PlatformSettings /> },
-      { path: "notifications", element: <Notworking /> },
-      { path: "reports", element: <Notworking /> },
-    ],
-  },
+import ProtectedRoute from "./ProtectedRoute.jsx";
+
+const router = createHashRouter([
+
   {
     path: "/login",
     element: <Login />,
-  }
+  },
+
+  {
+    element: <ProtectedRoute />,
+
+    children: [
+      {
+        path: "/",
+        element: <Layout />,
+
+        children: [
+          { index: true, element: <Dashboard /> },
+          { path: "users", element: <UsersManagement /> },
+          { path: "books", element: <BookManagement /> },
+          { path: "catalog", element: <SearchCatalog /> },
+          { path: "issue", element: <CirculationDesk /> },
+          { path: "settings", element: <PlatformSettings /> },
+          { path: "notifications", element: <Notworking /> },
+          { path: "reports", element: <Notworking /> },
+        ],
+      },
+    ],
+  },
 ]);
 
 export default router;
