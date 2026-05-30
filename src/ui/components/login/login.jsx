@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LoginHandle } from "../../services/login";
 import { useNavigate } from "react-router-dom";
 
@@ -64,14 +64,18 @@ export default function IntellectualAtelierLogin() {
       return;
     }
     const response = await LoginHandle(form);
-    if(response.token) {
+    if (response.token) {
       localStorage.setItem("token", response.token);
       navigate("/");
     }
     setErrors({});
     setSubmitted(true);
   };
-
+  useEffect(() => {
+    if (localStorage.getItem("token")) {
+      navigate("/");
+    }
+  }, [navigate]);
   return (
     <div
       style={{ fontFamily: "'Georgia', 'Times New Roman', serif", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f3f8", padding: "24px" }}

@@ -5,7 +5,8 @@
 
 import { useState } from "react";
 import ConfirmDeleteDialog from "../dialogue/deleteDialogue";
-import EditDialog      from "../dialogue/editDialogue";
+import EditDialog from "../dialogue/editDialogue";
+import { getBooks } from "../../services/book";
 
 // ─────────────────────────────────────────────
 // 1. STAT CARD
@@ -29,9 +30,9 @@ function StatCard({ label, value, icon, iconBg = "bg-indigo-100" }) {
 // ─────────────────────────────────────────────
 const categoryStyles = {
   "Art & Design": "bg-pink-100 text-pink-700",
-  Philosophy:     "bg-blue-100 text-blue-700",
-  Science:        "bg-emerald-100 text-emerald-700",
-  History:        "bg-amber-100 text-amber-700",
+  Philosophy: "bg-blue-100 text-blue-700",
+  Science: "bg-emerald-100 text-emerald-700",
+  History: "bg-amber-100 text-amber-700",
 };
 
 function CategoryBadge({ category }) {
@@ -47,9 +48,9 @@ function CategoryBadge({ category }) {
 // 3. STATUS BADGE
 // ─────────────────────────────────────────────
 const statusStyles = {
-  Available:   { dot: "bg-emerald-500", text: "text-emerald-600" },
-  Issued:      { dot: "bg-blue-500",    text: "text-blue-600"    },
-  Maintenance: { dot: "bg-red-500",     text: "text-red-600"     },
+  Available: { dot: "bg-emerald-500", text: "text-emerald-600" },
+  Issued: { dot: "bg-blue-500", text: "text-blue-600" },
+  Maintenance: { dot: "bg-red-500", text: "text-red-600" },
 };
 
 function StatusBadge({ status }) {
@@ -174,8 +175,8 @@ function FilterSelect({ label, options, value, onChange }) {
 // 8. PAGINATION
 // ─────────────────────────────────────────────
 function Pagination({ current, total, totalEntries, perPage, onPageChange }) {
-  const from  = (current - 1) * perPage + 1;
-  const to    = Math.min(current * perPage, totalEntries);
+  const from = (current - 1) * perPage + 1;
+  const to = Math.min(current * perPage, totalEntries);
   const pages = [1, 2, 3, "…", total];
 
   return (
@@ -189,9 +190,8 @@ function Pagination({ current, total, totalEntries, perPage, onPageChange }) {
             <span key={i} className="w-7 h-7 flex items-center justify-center text-gray-300">…</span>
           ) : (
             <button key={i} onClick={() => typeof p === "number" && onPageChange(p)}
-              className={`w-7 h-7 rounded-md border flex items-center justify-center transition font-semibold ${
-                current === p ? "bg-indigo-600 border-indigo-600 text-white" : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
-              }`}>{p}</button>
+              className={`w-7 h-7 rounded-md border flex items-center justify-center transition font-semibold ${current === p ? "bg-indigo-600 border-indigo-600 text-white" : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                }`}>{p}</button>
           )
         )}
         <button onClick={() => onPageChange(Math.min(total, current + 1))}
@@ -235,9 +235,9 @@ function BookViewDrawer({ book, onClose }) {
             </div>
           </div>
           {[
-            { label: "Author",   value: book.author },
+            { label: "Author", value: book.author },
             { label: "Category", value: <CategoryBadge category={book.category} /> },
-            { label: "ISBN",     value: <span className="font-mono text-xs text-gray-600">{book.isbn}</span> },
+            { label: "ISBN", value: <span className="font-mono text-xs text-gray-600">{book.isbn}</span> },
           ].map(({ label, value }) => (
             <div key={label} className="flex flex-col gap-1 border-b border-gray-100 pb-4">
               <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{label}</span>
@@ -265,28 +265,28 @@ function BookViewDrawer({ book, onClose }) {
 // ─────────────────────────────────────────────
 // 10. BOOK TABLE (state + dialogs)
 // ─────────────────────────────────────────────
-const CATEGORY_OPTIONS     = ["All Categories", "Art & Design", "Philosophy", "Science", "History"];
+const CATEGORY_OPTIONS = ["All Categories", "Art & Design", "Philosophy", "Science", "History"];
 const AVAILABILITY_OPTIONS = ["All Status", "Available", "Issued", "Maintenance"];
 
 function BookTable({ books: initialBooks = [], totalEntries = 0 }) {
-  const [books,        setBooks]      = useState(initialBooks);
-  const [category,     setCategory]   = useState("All Categories");
-  const [availability, setAvail]      = useState("All Status");
-  const [view,         setView]       = useState("list");
-  const [page,         setPage]       = useState(1);
+  const [books, setBooks] = useState(initialBooks);
+  const [category, setCategory] = useState("All Categories");
+  const [availability, setAvail] = useState("All Status");
+  const [view, setView] = useState("list");
+  const [page, setPage] = useState(1);
 
   // Dialog state
-  const [viewBook,   setViewBook]   = useState(null);
-  const [editBook,   setEditBook]   = useState(null);
-  const [editOpen,   setEditOpen]   = useState(false);
+  const [viewBook, setViewBook] = useState(null);
+  const [editBook, setEditBook] = useState(null);
+  const [editOpen, setEditOpen] = useState(false);
   const [deleteBook, setDeleteBook] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const PER_PAGE = 4;
 
   const filtered = books.filter((b) => {
-    const catMatch  = category     === "All Categories" || b.category === category;
-    const statMatch = availability === "All Status"     || b.status   === availability;
+    const catMatch = category === "All Categories" || b.category === category;
+    const statMatch = availability === "All Status" || b.status === availability;
     return catMatch && statMatch;
   });
 
@@ -307,15 +307,14 @@ function BookTable({ books: initialBooks = [], totalEntries = 0 }) {
       {/* Filter bar */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-4 flex-wrap">
-          <FilterSelect label="Category"     options={CATEGORY_OPTIONS}     value={category}     onChange={setCategory} />
-          <FilterSelect label="Availability" options={AVAILABILITY_OPTIONS} value={availability} onChange={setAvail}    />
+          <FilterSelect label="Category" options={CATEGORY_OPTIONS} value={category} onChange={setCategory} />
+          <FilterSelect label="Availability" options={AVAILABILITY_OPTIONS} value={availability} onChange={setAvail} />
         </div>
         <div className="flex gap-1">
           {[["list", "☰"], ["grid", "⊞"]].map(([v, icon]) => (
             <button key={v} onClick={() => setView(v)}
-              className={`w-8 h-8 rounded-md border flex items-center justify-center text-sm transition ${
-                view === v ? "bg-gray-100 border-gray-300 text-indigo-600" : "bg-white border-gray-200 text-gray-400 hover:bg-gray-50"
-              }`}>{icon}</button>
+              className={`w-8 h-8 rounded-md border flex items-center justify-center text-sm transition ${view === v ? "bg-gray-100 border-gray-300 text-indigo-600" : "bg-white border-gray-200 text-gray-400 hover:bg-gray-50"
+                }`}>{icon}</button>
           ))}
         </div>
       </div>
@@ -340,8 +339,8 @@ function BookTable({ books: initialBooks = [], totalEntries = 0 }) {
                 <BookTableRow
                   key={book.id}
                   book={book}
-                  onView={()   => setViewBook(book)}
-                  onEdit={()   => { setEditBook(book); setEditOpen(true); }}
+                  onView={() => setViewBook(book)}
+                  onEdit={() => { setEditBook(book); setEditOpen(true); }}
                   onDelete={() => { setDeleteBook(book); setDeleteOpen(true); }}
                 />
               ))
@@ -426,68 +425,174 @@ function ActionQueue({ tasks = [] }) {
 // ─────────────────────────────────────────────
 // MOCK DATA
 // ─────────────────────────────────────────────
-const INITIAL_BOOKS = [
-  { id: 1, title: "The Art of Curation",       edition: "1st Edition, 2023",     author: "Elena Montgomery", category: "Art & Design", isbn: "978-3-16-148410-0", status: "Available",   thumbEmoji: "🎨", thumbBg: "bg-pink-100"    },
-  { id: 2, title: "Foundations of Logic",       edition: "Oxford Press, 2018",    author: "Dr. Silas Vance",  category: "Philosophy",   isbn: "978-0-19-853453-2", status: "Issued",      thumbEmoji: "📖", thumbBg: "bg-blue-100"    },
-  { id: 3, title: "Quantum Narratives",         edition: "Revised Edition, 2021", author: "Liora Stein",      category: "Science",      isbn: "978-1-56-019803-6", status: "Maintenance", thumbEmoji: "🔬", thumbBg: "bg-emerald-100" },
-  { id: 4, title: "History of the Silent City", edition: "Archival Series, 2019", author: "Marcus Thorne",    category: "History",      isbn: "978-3-16-148410-0", status: "Available",   thumbEmoji: "🏛️", thumbBg: "bg-amber-100"   },
-];
 
 const ACTION_TASKS = [
   { id: 1, icon: "✅", iconBg: "bg-emerald-100", text: "Approve 'Quantum Narratives' return inspection" },
-  { id: 2, icon: "🔄", iconBg: "bg-amber-100",   text: "Restock 12 copies of 'The Art of Curation'"    },
-  { id: 3, icon: "📦", iconBg: "bg-blue-100",    text: "Process new acquisitions from Oxford Press"    },
+  { id: 2, icon: "🔄", iconBg: "bg-amber-100", text: "Restock 12 copies of 'The Art of Curation'" },
+  { id: 3, icon: "📦", iconBg: "bg-blue-100", text: "Process new acquisitions from Oxford Press" },
 ];
 
 // ─────────────────────────────────────────────
 // DEFAULT EXPORT
 // ─────────────────────────────────────────────
+ const getRandomCategory = () => {
+    const categories = [
+      "Science",
+      "History",
+      "Philosophy",
+      "Art & Design",
+    ];
+
+    return categories[
+      Math.floor(Math.random() * categories.length)
+    ];
+  };
+
+  const getRandomEmoji = () => {
+    const emojis = ["📚", "📖", "🔬", "🏛️", "🎨"];
+
+    return emojis[
+      Math.floor(Math.random() * emojis.length)
+    ];
+  };
+
+  const getRandomBg = () => {
+    const bgs = [
+      "bg-pink-100",
+      "bg-blue-100",
+      "bg-emerald-100",
+      "bg-amber-100",
+      "bg-violet-100",
+    ];
+
+    return bgs[
+      Math.floor(Math.random() * bgs.length)
+    ];
+  };
 export default function BookManagement() {
   const [addOpen, setAddOpen] = useState(false);
+  const [books, setBooks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const fetchBooks = async () => {
+    try {
+      const response = await getBooks();
+
+      const formattedBooks = response.map((book) => ({
+        id: book.id,
+        title: book.title,
+        edition: book.publishedYear
+          ? `${book.publishedYear} Edition`
+          : "Unknown Edition",
+
+        author: book.author,
+
+        category: getRandomCategory(),
+
+        isbn: book.isbn,
+
+        status:
+          book.available > 0
+            ? "Available"
+            : "Issued",
+
+        thumbEmoji: getRandomEmoji(),
+
+        thumbBg: getRandomBg(),
+      }));
+
+      setBooks(formattedBooks);
+    } catch (error) {
+      console.error("Failed to fetch books:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useState(() => {
+    fetchBooks();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="p-10 text-center text-gray-500">
+        Loading books...
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
 
-      {/* Page Header */}
+      {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Book Management</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Manage and organize the Intellectual Atelier's literary collection.</p>
+          <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">
+            Book Management
+          </h1>
+
+          <p className="text-sm text-gray-500 mt-0.5">
+            Manage and organize books.
+          </p>
         </div>
+
         <button
           onClick={() => setAddOpen(true)}
-          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all"
+          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl"
         >
           + Add New Book
         </button>
       </div>
 
-      {/* Stat Cards */}
+      {/* Stats */}
       <div className="flex gap-4 mb-6">
-        <StatCard label="Total Volumes"    value="12,482" icon="📚" iconBg="bg-indigo-100"  />
-        <StatCard label="Currently Issued" value="843"    icon="📤" iconBg="bg-purple-100" />
-        <StatCard label="Maintenance"      value="24"     icon="🔧" iconBg="bg-red-100"    />
+        <StatCard
+          label="Total Volumes"
+          value={books.length}
+          icon="📚"
+          iconBg="bg-indigo-100"
+        />
+
+        <StatCard
+          label="Available"
+          value={
+            books.filter((b) => b.status === "Available").length
+          }
+          icon="✅"
+          iconBg="bg-emerald-100"
+        />
+
+        <StatCard
+          label="Issued"
+          value={
+            books.filter((b) => b.status === "Issued").length
+          }
+          icon="📤"
+          iconBg="bg-red-100"
+        />
       </div>
 
-      {/* Book Table */}
-      <BookTable books={INITIAL_BOOKS} totalEntries={12482} />
+      {/* Table */}
+      <BookTable
+        books={books}
+        totalEntries={books.length}
+      />
 
-      {/* Bottom Row */}
+      {/* Bottom */}
       <div className="grid grid-cols-1 md:grid-cols-[1fr_1.8fr] gap-4 mt-5">
+
         <LibrarianInsight
-          insight={`"History" is the most trending category this month with a 24% increase in issuance. Consider expanding the 'Modern-European' sub-collection.`}
+          insight={`Library circulation is growing steadily this month.`}
         />
+
         <ActionQueue tasks={ACTION_TASKS} />
       </div>
 
-      {/* Add New Book dialog (header button) */}
+      {/* Add Dialog */}
       <EditDialog
         isOpen={addOpen}
         onClose={() => setAddOpen(false)}
-        onSave={(newBook) => console.log("New book:", newBook)}
+        onSave={(newBook) => console.log(newBook)}
         book={null}
       />
-
     </div>
   );
 }
