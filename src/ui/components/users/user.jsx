@@ -1,11 +1,13 @@
 // ============================================================
 //  UsersManagement.jsx  –  outlet only (no layout / sidebar)
 //  Requires: ConfirmDeleteDialog.jsx  &  EditDialog.jsx
+//  API Integration: getUsers, createUser, updateUserStatus, deleteUser
 // ============================================================
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import ConfirmDeleteDialog from "../dialogue/deleteDialogue.jsx";
-import EditDialog      from "../dialogue/editDialogue.jsx";
+import EditDialog from "../dialogue/editDialogue.jsx";
+import { getUsers, createUser, updateUserStatus, deleteUser } from "../../services/users.js";
 
 // ─────────────────────────────────────────────────────────────
 // HELPERS
@@ -16,13 +18,13 @@ function now() {
 
 function exportCSV(users) {
   const headers = ["Name", "Email", "User ID", "Role", "Status"];
-  const rows    = users.map((u) => [u.name, u.email, u.userId, u.role, u.status]);
-  const csv     = [headers, ...rows].map((r) => r.join(",")).join("\n");
-  const blob    = new Blob([csv], { type: "text/csv" });
-  const url     = URL.createObjectURL(blob);
-  const a       = document.createElement("a");
-  a.href        = url;
-  a.download    = "users_export.csv";
+  const rows = users.map((u) => [u.name, u.email, u.memberId || u.userId, u.role, u.status]);
+  const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "users_export.csv";
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -30,14 +32,6 @@ function exportCSV(users) {
 // ─────────────────────────────────────────────────────────────
 // 1. STAT CARD
 // ─────────────────────────────────────────────────────────────
-/**
- * @param {string} label
- * @param {string} value
- * @param {string} sub       – small subtitle line
- * @param {string} subColor  – tailwind text color class
- * @param {React.ReactNode} icon
- * @param {string} iconBg    – tailwind bg class
- */
 function StatCard({ label, value, sub, subColor = "text-emerald-500", icon, iconBg = "bg-indigo-50" }) {
   return (
     <div className="bg-white rounded-xl px-5 py-4 shadow-sm flex-1 min-w-0 border border-gray-100">
@@ -55,17 +49,18 @@ function StatCard({ label, value, sub, subColor = "text-emerald-500", icon, icon
 // 2. ROLE BADGE
 // ─────────────────────────────────────────────────────────────
 const roleStyle = {
-  Student:   "bg-indigo-100 text-indigo-700",
-  Admin:     "bg-gray-800   text-white",
-  Librarian: "bg-violet-100 text-violet-700",
-  Faculty:   "bg-amber-100  text-amber-700",
-  Guest:     "bg-gray-100   text-gray-500",
+  student: "bg-indigo-100 text-indigo-700",
+  admin: "bg-gray-800 text-white",
+  librarian: "bg-violet-100 text-violet-700",
+  faculty: "bg-amber-100 text-amber-700",
+  guest: "bg-gray-100 text-gray-500",
 };
 
 function RoleBadge({ role }) {
+  const displayRole = role?.charAt(0).toUpperCase() + role?.slice(1) || "Student";
   return (
     <span className={`inline-block px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide ${roleStyle[role] || "bg-gray-100 text-gray-500"}`}>
-      {role}
+      {displayRole}
     </span>
   );
 }
@@ -74,17 +69,18 @@ function RoleBadge({ role }) {
 // 3. STATUS BADGE
 // ─────────────────────────────────────────────────────────────
 const statusStyle = {
-  Active:  { dot: "bg-emerald-500", text: "text-emerald-600" },
-  Blocked: { dot: "bg-red-500",     text: "text-red-600"     },
-  Pending: { dot: "bg-amber-400",   text: "text-amber-600"   },
+  active: { dot: "bg-emerald-500", text: "text-emerald-600" },
+  blocked: { dot: "bg-red-500", text: "text-red-600" },
+  pending: { dot: "bg-amber-400", text: "text-amber-600" },
 };
 
 function StatusBadge({ status }) {
-  const s = statusStyle[status] || { dot: "bg-gray-400", text: "text-gray-500" };
+  const s = statusStyle[status?.toLowerCase()] || { dot: "bg-gray-400", text: "text-gray-500" };
+  const displayStatus = status?.charAt(0).toUpperCase() + status?.slice(1) || "Active";
   return (
     <div className="flex items-center gap-1.5">
       <span className={`w-2 h-2 rounded-full ${s.dot}`} />
-      <span className={`text-xs font-semibold ${s.text}`}>{status}</span>
+      <span className={`text-xs font-semibold ${s.text}`}>{displayStatus}</span>
     </div>
   );
 }
@@ -112,13 +108,12 @@ function UserAvatar({ name, colorIndex = 0, size = "w-9 h-9" }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 5. ROW ACTIONS  (View / Edit / Delete + Block toggle)
+// 5. ROW ACTIONS
 // ─────────────────────────────────────────────────────────────
 function RowActions({ user, onView, onEdit, onDelete, onToggleBlock }) {
-  const isBlocked = user.status === "Blocked";
+  const isBlocked = user.status?.toLowerCase() === "blocked";
   return (
     <div className="flex items-center gap-1">
-      {/* View */}
       <button onClick={onView} title="View"
         className="w-8 h-8 rounded-lg flex items-center justify-center border border-gray-200 bg-white text-gray-400 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600 transition-all">
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -126,14 +121,12 @@ function RowActions({ user, onView, onEdit, onDelete, onToggleBlock }) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
         </svg>
       </button>
-      {/* Edit */}
       <button onClick={onEdit} title="Edit"
         className="w-8 h-8 rounded-lg flex items-center justify-center border border-gray-200 bg-white text-gray-400 hover:border-violet-300 hover:bg-violet-50 hover:text-violet-600 transition-all">
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
         </svg>
       </button>
-      {/* Block / Unblock */}
       <button onClick={onToggleBlock} title={isBlocked ? "Unblock" : "Block"}
         className={`w-8 h-8 rounded-lg flex items-center justify-center border transition-all ${
           isBlocked
@@ -147,7 +140,6 @@ function RowActions({ user, onView, onEdit, onDelete, onToggleBlock }) {
           }
         </svg>
       </button>
-      {/* Delete */}
       <button onClick={onDelete} title="Delete"
         className="w-8 h-8 rounded-lg flex items-center justify-center border border-gray-200 bg-white text-gray-400 hover:border-red-300 hover:bg-red-50 hover:text-red-500 transition-all">
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -164,12 +156,10 @@ function RowActions({ user, onView, onEdit, onDelete, onToggleBlock }) {
 function UserTableRow({ user, index, selected, onSelect, onView, onEdit, onDelete, onToggleBlock }) {
   return (
     <tr className={`border-b border-gray-50 transition-colors ${selected ? "bg-indigo-50/40" : "hover:bg-gray-50/70"}`}>
-      {/* Checkbox */}
       <td className="pl-4 pr-2 py-3.5 w-8">
         <input type="checkbox" checked={selected} onChange={onSelect}
           className="w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 accent-indigo-600 cursor-pointer" />
       </td>
-      {/* Member details */}
       <td className="px-4 py-3.5">
         <div className="flex items-center gap-3">
           <UserAvatar name={user.name} colorIndex={index} />
@@ -179,13 +169,9 @@ function UserTableRow({ user, index, selected, onSelect, onView, onEdit, onDelet
           </div>
         </div>
       </td>
-      {/* User ID */}
-      <td className="px-4 py-3.5 font-mono text-[11px] text-gray-400">{user.userId}</td>
-      {/* Role */}
+      <td className="px-4 py-3.5 font-mono text-[11px] text-gray-400">{user.memberId || user.userId || `#${user.id}`}</td>
       <td className="px-4 py-3.5"><RoleBadge role={user.role} /></td>
-      {/* Status */}
       <td className="px-4 py-3.5"><StatusBadge status={user.status} /></td>
-      {/* Actions */}
       <td className="px-4 py-3.5">
         <RowActions
           user={user}
@@ -221,8 +207,8 @@ function FilterDropdown({ label, options, value, onChange, icon }) {
 // 8. PAGINATION
 // ─────────────────────────────────────────────────────────────
 function Pagination({ current, totalPages, totalEntries, perPage, onPageChange }) {
-  const from  = (current - 1) * perPage + 1;
-  const to    = Math.min(current * perPage, totalEntries);
+  const from = (current - 1) * perPage + 1;
+  const to = Math.min(current * perPage, totalEntries);
   const pages = totalPages <= 5
     ? Array.from({ length: totalPages }, (_, i) => i + 1)
     : [1, 2, 3, "…", totalPages];
@@ -271,7 +257,6 @@ function UserViewDrawer({ user, index, onClose, onEdit }) {
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-5">
-          {/* Avatar + name */}
           <div className="flex flex-col items-center text-center mb-6 pt-2">
             <UserAvatar name={user.name} colorIndex={index} size="w-16 h-16" />
             <h3 className="text-base font-bold text-gray-900 mt-3">{user.name}</h3>
@@ -282,13 +267,14 @@ function UserViewDrawer({ user, index, onClose, onEdit }) {
             </div>
           </div>
 
-          {/* Info rows */}
           <div className="space-y-0 divide-y divide-gray-100">
             {[
-              { label: "User ID",   value: <span className="font-mono text-xs">{user.userId}</span> },
-              { label: "Role",      value: user.role   },
-              { label: "Status",    value: user.status },
-              { label: "Email",     value: user.email  },
+              { label: "User ID", value: <span className="font-mono text-xs">{user.memberId || user.userId || `#${user.id}`}</span> },
+              { label: "Role", value: user.role },
+              { label: "Status", value: user.status },
+              { label: "Email", value: user.email },
+              { label: "Department", value: user.department || "—" },
+              { label: "Phone", value: user.phone || "—" },
             ].map(({ label, value }) => (
               <div key={label} className="flex justify-between items-center py-3">
                 <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{label}</span>
@@ -333,49 +319,51 @@ function ActivityItem({ icon, iconBg, title, sub, time }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// MOCK DATA
+// MAIN COMPONENT with API Integration
 // ─────────────────────────────────────────────────────────────
-const INITIAL_USERS = [
-  { id: 1, name: "Eleanor Davies",  email: "e.davies@atelier.edu",   userId: "USR-2624-881", role: "Student",   status: "Active"  },
-  { id: 2, name: "Marcus Thorne",   email: "m.thorne@atelier.edu",   userId: "USR-2924-112", role: "Admin",     status: "Active"  },
-  { id: 3, name: "Sarah Lindgren",  email: "s.lindgren@atelier.edu", userId: "USR-2024-384", role: "Librarian", status: "Blocked" },
-  { id: 4, name: "Julian Weber",    email: "j.weber@system.edu",     userId: "USR-2024-712", role: "Student",   status: "Active"  },
-  { id: 5, name: "Priya Menon",     email: "p.menon@atelier.edu",    userId: "USR-2024-503", role: "Faculty",   status: "Active"  },
-  { id: 6, name: "Daniel Osei",     email: "d.osei@atelier.edu",     userId: "USR-2024-617", role: "Guest",     status: "Pending" },
-  { id: 7, name: "Amara Nwosu",     email: "a.nwosu@atelier.edu",    userId: "USR-2024-291", role: "Student",   status: "Active"  },
-  { id: 8, name: "Leo Hartmann",    email: "l.hartmann@atelier.edu", userId: "USR-2024-830", role: "Librarian", status: "Active"  },
-];
+const PER_PAGE = 8;
+const ROLE_OPTIONS = ["All Roles", "student", "admin", "librarian", "faculty", "guest"];
+const STATUS_OPTIONS = ["Active Status", "active", "blocked", "pending"];
 
-const INITIAL_ACTIVITY = [
-  { id: 1, icon: "👤", iconBg: "bg-indigo-50",  title: "New User Registered",    sub: "Eleanor Davies",  time: "2 min ago"  },
-  { id: 2, icon: "✏️", iconBg: "bg-violet-50",  title: "Profile Updated",        sub: "Marcus Thorne",   time: "18 min ago" },
-  { id: 3, icon: "🔒", iconBg: "bg-amber-50",   title: "Role Updated: Student",  sub: "Julian Weber",    time: "45 min ago" },
-];
-
-const PER_PAGE          = 8;
-const ROLE_OPTIONS      = ["All Roles", "Student", "Admin", "Librarian", "Faculty", "Guest"];
-const STATUS_OPTIONS    = ["Active Status", "Active", "Blocked", "Pending"];
-
-// ─────────────────────────────────────────────────────────────
-// DEFAULT EXPORT
-// ─────────────────────────────────────────────────────────────
 export default function UsersManagement() {
-  const [users,      setUsers]      = useState(INITIAL_USERS);
-  const [activity,   setActivity]   = useState(INITIAL_ACTIVITY);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [activity, setActivity] = useState([]);
   const [roleFilter, setRoleFilter] = useState("All Roles");
   const [statFilter, setStatFilter] = useState("Active Status");
-  const [search,     setSearch]     = useState("");
-  const [page,       setPage]       = useState(1);
-  const [selected,   setSelected]   = useState(new Set());
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState(new Set());
 
-  // Dialogs
-  const [viewUser,     setViewUser]     = useState(null);
-  const [viewIndex,    setViewIndex]    = useState(0);
-  const [editUser,     setEditUser]     = useState(null);
-  const [editOpen,     setEditOpen]     = useState(false);
-  const [deleteUser,   setDeleteUser]   = useState(null);
-  const [deleteOpen,   setDeleteOpen]   = useState(false);
-  const [bulkDelOpen,  setBulkDelOpen]  = useState(false);
+  const [viewUser, setViewUser] = useState(null);
+  const [viewIndex, setViewIndex] = useState(0);
+  const [editUser, setEditUser] = useState(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteUser, setDeleteUser] = useState(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [bulkDelOpen, setBulkDelOpen] = useState(false);
+
+  // ── Fetch Users from API ──
+  const fetchUsers = async () => {
+    setLoading(true);
+    try {
+      const response = await getUsers(page, PER_PAGE);
+      if (response && !response.error) {
+        setUsers(Array.isArray(response) ? response : []);
+      } else {
+        setUsers([]);
+      }
+    } catch (error) {
+      console.error("Failed to fetch users:", error);
+      setUsers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, [page]);
 
   // ── Activity log helper ──
   const logActivity = (icon, iconBg, title, sub) => {
@@ -388,22 +376,22 @@ export default function UsersManagement() {
   // ── Filtering ──
   const filtered = useMemo(() => {
     return users.filter((u) => {
-      const roleOk   = roleFilter === "All Roles"     || u.role   === roleFilter;
-      const statOk   = statFilter === "Active Status" || u.status === statFilter;
-      const searchOk = !search || u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase());
+      const roleOk = roleFilter === "All Roles" || u.role === roleFilter;
+      const statOk = statFilter === "Active Status" || u.status?.toLowerCase() === statFilter.toLowerCase();
+      const searchOk = !search || u.name?.toLowerCase().includes(search.toLowerCase()) || u.email?.toLowerCase().includes(search.toLowerCase());
       return roleOk && statOk && searchOk;
     });
   }, [users, roleFilter, statFilter, search]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
-  const paginated  = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
-  const activeCount  = users.filter((u) => u.status === "Active").length;
-  const pendingCount = users.filter((u) => u.status === "Pending").length;
-  const blockedCount = users.filter((u) => u.status === "Blocked").length;
+  const activeCount = users.filter((u) => u.status?.toLowerCase() === "active").length;
+  const pendingCount = users.filter((u) => u.status?.toLowerCase() === "pending").length;
+  const blockedCount = users.filter((u) => u.status?.toLowerCase() === "blocked").length;
 
   // ── Selection helpers ──
-  const allSelected  = paginated.length > 0 && paginated.every((u) => selected.has(u.id));
+  const allSelected = paginated.length > 0 && paginated.every((u) => selected.has(u.id));
   const someSelected = paginated.some((u) => selected.has(u.id));
 
   const toggleSelect = (id) =>
@@ -420,54 +408,81 @@ export default function UsersManagement() {
   const clearSelection = () => setSelected(new Set());
 
   // ── CRUD handlers ──
-  const handleSave = (updated) => {
+  const handleSave = async (updated) => {
     const isNew = !users.some((u) => u.id === updated.id);
-    setUsers((prev) =>
-      isNew ? [updated, ...prev] : prev.map((u) => (u.id === updated.id ? updated : u))
-    );
-    logActivity(
-      isNew ? "👤" : "✏️",
-      isNew ? "bg-indigo-50" : "bg-violet-50",
-      isNew ? "New User Added" : "Profile Updated",
-      updated.name
-    );
+    if (isNew) {
+      const response = await createUser(updated);
+      if (response.success) {
+        await fetchUsers();
+        logActivity("👤", "bg-indigo-50", "New User Added", updated.name);
+      }
+    } else {
+      // Update status via API
+      if (updated.status) {
+        await updateUserStatus(updated.id, updated.status);
+      }
+      await fetchUsers();
+      logActivity("✏️", "bg-violet-50", "Profile Updated", updated.name);
+    }
   };
 
-  const handleDelete = () => {
-    setUsers((prev) => prev.filter((u) => u.id !== deleteUser?.id));
-    logActivity("🗑️", "bg-red-50", "User Deleted", deleteUser?.name);
-    setSelected((prev) => { const s = new Set(prev); s.delete(deleteUser?.id); return s; });
+  const handleDelete = async () => {
+    const response = await deleteUser(deleteUser?.id);
+    if (response.success) {
+      await fetchUsers();
+      logActivity("🗑️", "bg-red-50", "User Deleted", deleteUser?.name);
+      setSelected((prev) => { const s = new Set(prev); s.delete(deleteUser?.id); return s; });
+    }
   };
 
-  const handleBulkDelete = () => {
-    setUsers((prev) => prev.filter((u) => !selected.has(u.id)));
+  const handleBulkDelete = async () => {
+    const selectedIds = Array.from(selected);
+    for (const id of selectedIds) {
+      await deleteUser(id);
+    }
+    await fetchUsers();
     logActivity("🗑️", "bg-red-50", `${selected.size} Users Deleted`, "Bulk action");
     clearSelection();
   };
 
-  const handleToggleBlock = (user) => {
-    const next = user.status === "Blocked" ? "Active" : "Blocked";
-    setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, status: next } : u)));
-    logActivity(
-      next === "Blocked" ? "🔒" : "🔓",
-      next === "Blocked" ? "bg-amber-50" : "bg-emerald-50",
-      next === "Blocked" ? "User Blocked" : "User Unblocked",
-      user.name
-    );
+  const handleToggleBlock = async (user) => {
+    const newStatus = user.status?.toLowerCase() === "blocked" ? "active" : "blocked";
+    const response = await updateUserStatus(user.id, newStatus);
+    if (response.success) {
+      await fetchUsers();
+      logActivity(
+        newStatus === "blocked" ? "🔒" : "🔓",
+        newStatus === "blocked" ? "bg-amber-50" : "bg-emerald-50",
+        newStatus === "blocked" ? "User Blocked" : "User Unblocked",
+        user.name
+      );
+    }
   };
 
-  const handleBulkBlock = () => {
-    setUsers((prev) => prev.map((u) => selected.has(u.id) ? { ...u, status: "Blocked" } : u));
+  const handleBulkBlock = async () => {
+    const selectedIds = Array.from(selected);
+    for (const id of selectedIds) {
+      await updateUserStatus(id, "blocked");
+    }
+    await fetchUsers();
     logActivity("🔒", "bg-amber-50", `${selected.size} Users Blocked`, "Bulk action");
     clearSelection();
   };
 
   const openEdit = (user) => { setEditUser(user); setEditOpen(true); };
 
+  if (loading) {
+    return (
+      <div className="p-6 bg-gray-50 min-h-screen flex items-center justify-center">
+        <div className="text-gray-500">Loading users...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
 
-      {/* ── Page Header ── */}
+      {/* Page Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
           <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Users Management</h1>
@@ -484,20 +499,19 @@ export default function UsersManagement() {
         </button>
       </div>
 
-      {/* ── Stat Cards ── */}
+      {/* Stat Cards */}
       <div className="flex gap-4 mb-6">
-        <StatCard label="Total Members"     value={users.length.toLocaleString()} sub="↑ 12% from last month"     subColor="text-emerald-500" icon="👥" iconBg="bg-indigo-50"  />
-        <StatCard label="Active Today"      value={activeCount}                   sub="Normal traffic flow"        subColor="text-blue-500"    icon="⚡" iconBg="bg-blue-50"    />
-        <StatCard label="Pending Approvals" value={pendingCount}                  sub={pendingCount ? "Action required" : "All clear"} subColor={pendingCount ? "text-amber-500" : "text-emerald-500"} icon="⏳" iconBg="bg-amber-50" />
-        <StatCard label="System Health"     value="Secure"                        sub={`${blockedCount} blocked`}  subColor="text-emerald-500" icon="🛡️" iconBg="bg-emerald-50" />
+        <StatCard label="Total Members" value={users.length.toLocaleString()} sub="From database" subColor="text-emerald-500" icon="👥" iconBg="bg-indigo-50" />
+        <StatCard label="Active Today" value={activeCount} sub="Active users" subColor="text-blue-500" icon="⚡" iconBg="bg-blue-50" />
+        <StatCard label="Pending Approvals" value={pendingCount} sub={pendingCount ? "Action required" : "All clear"} subColor={pendingCount ? "text-amber-500" : "text-emerald-500"} icon="⏳" iconBg="bg-amber-50" />
+        <StatCard label="System Health" value="Secure" sub={`${blockedCount} blocked`} subColor="text-emerald-500" icon="🛡️" iconBg="bg-emerald-50" />
       </div>
 
-      {/* ── Toolbar ── */}
+      {/* Toolbar */}
       <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
-          <FilterDropdown label="Role"   icon="👤" options={ROLE_OPTIONS}   value={roleFilter} onChange={(v) => { setRoleFilter(v); setPage(1); }} />
-          <FilterDropdown label="Status" icon="●"  options={STATUS_OPTIONS} value={statFilter} onChange={(v) => { setStatFilter(v); setPage(1); }} />
-          {/* Search */}
+          <FilterDropdown label="Role" icon="👤" options={ROLE_OPTIONS} value={roleFilter} onChange={(v) => { setRoleFilter(v); setPage(1); }} />
+          <FilterDropdown label="Status" icon="●" options={STATUS_OPTIONS} value={statFilter} onChange={(v) => { setStatFilter(v); setPage(1); }} />
           <div className="relative">
             <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               placeholder="Search by name or email…"
@@ -523,7 +537,6 @@ export default function UsersManagement() {
               <button onClick={clearSelection} className="text-xs text-gray-400 hover:text-gray-600 transition">✕ Clear</button>
             </div>
           )}
-          {/* Export CSV */}
           <button onClick={() => exportCSV(filtered)}
             className="flex items-center gap-1.5 border border-gray-200 bg-white text-gray-600 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-gray-50 transition">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -534,7 +547,7 @@ export default function UsersManagement() {
         </div>
       </div>
 
-      {/* ── Table ── */}
+      {/* Table */}
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">
         <table className="w-full border-collapse">
           <thead>
@@ -562,10 +575,10 @@ export default function UsersManagement() {
                 <UserTableRow
                   key={user.id}
                   user={user}
-                  index={users.indexOf(user)}
+                  index={i}
                   selected={selected.has(user.id)}
                   onSelect={() => toggleSelect(user.id)}
-                  onView={() => { setViewUser(user); setViewIndex(users.indexOf(user)); }}
+                  onView={() => { setViewUser(user); setViewIndex(i); }}
                   onEdit={() => openEdit(user)}
                   onDelete={() => { setDeleteUser(user); setDeleteOpen(true); }}
                   onToggleBlock={() => handleToggleBlock(user)}
@@ -584,10 +597,9 @@ export default function UsersManagement() {
         />
       </div>
 
-      {/* ── Bottom Row ── */}
+      {/* Bottom Row */}
       <div className="grid grid-cols-1 md:grid-cols-[1.2fr_1fr] gap-4 mt-5">
 
-        {/* Bulk Access Info */}
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 relative overflow-hidden">
           <div className="absolute right-4 bottom-3 text-6xl opacity-5 select-none">⚙️</div>
           <h3 className="text-sm font-bold text-gray-900 mb-1.5">Need help managing bulk access?</h3>
@@ -600,7 +612,6 @@ export default function UsersManagement() {
           </button>
         </div>
 
-        {/* Recent Activity */}
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-bold text-gray-900">Recent Activity</h3>
@@ -618,17 +629,9 @@ export default function UsersManagement() {
 
       </div>
 
-      {/* ── Dialogs ── */}
+      {/* Dialogs */}
+      <UserViewDrawer user={viewUser} index={viewIndex} onClose={() => setViewUser(null)} onEdit={(u) => openEdit(u)} />
 
-      {/* View Drawer */}
-      <UserViewDrawer
-        user={viewUser}
-        index={viewIndex}
-        onClose={() => setViewUser(null)}
-        onEdit={(u) => openEdit(u)}
-      />
-
-      {/* Add / Edit */}
       <EditDialog
         isOpen={editOpen}
         onClose={() => setEditOpen(false)}
@@ -636,7 +639,6 @@ export default function UsersManagement() {
         user={editUser}
       />
 
-      {/* Delete single (reusable ConfirmDeleteDialog) */}
       <ConfirmDeleteDialog
         isOpen={deleteOpen}
         onClose={() => setDeleteOpen(false)}
@@ -647,7 +649,6 @@ export default function UsersManagement() {
         itemMeta={deleteUser ? { label: "Member", value: deleteUser.name } : undefined}
       />
 
-      {/* Bulk delete (reusing the same ConfirmDeleteDialog) */}
       <ConfirmDeleteDialog
         isOpen={bulkDelOpen}
         onClose={() => setBulkDelOpen(false)}

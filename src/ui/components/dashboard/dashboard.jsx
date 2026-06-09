@@ -1,6 +1,24 @@
-import StatCard from "./statCard.jsx";
+import { useState, useEffect } from "react";
+import { getUserStats } from "../../services/users";
+import { getBooks } from "../../services/book";
 
-// ─── Tiny reusable pieces ────────────────────────────────────────────────────
+// ─── Stat Card Component ────────────────────────────────────────────────────
+function StatCard({ label, value, change, changeType, iconBg, icon }) {
+  return (
+    <div className="bg-white rounded-xl px-5 py-4 shadow-sm flex-1 min-w-0 border border-gray-100">
+      <div className="flex items-start justify-between mb-3">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{label}</p>
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-base ${iconBg}`}>{icon}</div>
+      </div>
+      <p className="text-2xl font-extrabold text-gray-900 leading-none mb-1.5">{value}</p>
+      {change && (
+        <p className={`text-[11px] font-semibold ${changeType === "up" ? "text-emerald-500" : "text-red-500"}`}>
+          {change}
+        </p>
+      )}
+    </div>
+  );
+}
 
 function SectionCard({ children, style = {} }) {
   return (
@@ -78,7 +96,7 @@ function CatalogRow({ color, label, pct }) {
 
 // ─── SVG Borrowing Trend Sparkline ───────────────────────────────────────────
 function TrendChart() {
-  const months = ["JAN","FEB","MAR","APR","MAY","JUN"];
+  const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN"];
   const points = [30, 55, 45, 80, 60, 90];
   const W = 380, H = 100;
   const pad = { l: 10, r: 10, t: 10, b: 16 };
@@ -111,10 +129,57 @@ function TrendChart() {
   );
 }
 
-// ─── Dashboard Page ───────────────────────────────────────────────────────────
+// ─── Dashboard Page with API Integration ─────────────────────────────────────
 export default function Dashboard() {
+  const [stats, setStats] = useState({
+    totalMembers: 0,
+    activeToday: 0,
+    pendingApprovals: 0,
+    blockedUsers: 0,
+  });
+  const [booksCount, setBooksCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      setLoading(true);
+      try {
+        // Fetch user stats
+        const userStats = await getUserStats();
+        if (userStats && !userStats.error) {
+          setStats({
+            totalMembers: userStats.totalMembers || 0,
+            activeToday: userStats.activeToday || 0,
+            pendingApprovals: userStats.pendingApprovals || 0,
+            blockedUsers: userStats.blockedUsers || 0,
+          });
+        }
+
+        // Fetch books count
+        const books = await getBooks();
+        if (books && Array.isArray(books)) {
+          setBooksCount(books.length);
+        }
+      } catch (error) {
+        console.error("Error fetching dashboard stats:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="p-6 bg-gray-50 min-h-screen flex items-center justify-center">
+        <div className="text-gray-500">Loading dashboard...</div>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ padding: "28px 28px 32px", }}>
+    <div style={{ padding: "28px 28px 32px", background: "#f8fafc", minHeight: "100vh" }}>
       {/* Page Header */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
         <div>
@@ -152,11 +217,11 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Stat Cards */}
+      {/* Stat Cards - Dynamic from API */}
       <div style={{ display: "flex", gap: 14, marginBottom: 20 }}>
         <StatCard
           label="Total Books"
-          value="24,500"
+          value={booksCount.toLocaleString()}
           change="+8.2%"
           changeType="up"
           iconBg="rgba(99,102,241,0.10)"
@@ -164,27 +229,27 @@ export default function Dashboard() {
         />
         <StatCard
           label="Active Users"
-          value="1,200"
+          value={stats.activeToday.toLocaleString()}
           change="+16.5%"
           changeType="up"
           iconBg="rgba(124,58,237,0.10)"
           icon={<svg width="16" height="16" fill="none" stroke="#7c3aed" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path strokeLinecap="round" strokeLinejoin="round" d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>}
         />
         <StatCard
-          label="Issued Books"
-          value="450"
-          change="PRIME"
-          changeType="up"
+          label="Pending Approvals"
+          value={stats.pendingApprovals.toLocaleString()}
+          change={stats.pendingApprovals > 0 ? "Action Required" : "All Clear"}
+          changeType={stats.pendingApprovals > 0 ? "down" : "up"}
           iconBg="rgba(249,115,22,0.10)"
-          icon={<svg width="16" height="16" fill="none" stroke="#f97316" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>}
+          icon={<svg width="16" height="16" fill="none" stroke="#f97316" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>}
         />
         <StatCard
-          label="Overdue Items"
-          value="25"
-          change="BAD"
-          changeType="down"
+          label="Total Members"
+          value={stats.totalMembers.toLocaleString()}
+          change="Active"
+          changeType="up"
           iconBg="rgba(239,68,68,0.10)"
-          icon={<svg width="16" height="16" fill="none" stroke="#ef4444" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>}
+          icon={<svg width="16" height="16" fill="none" stroke="#ef4444" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>}
         />
       </div>
 
@@ -237,23 +302,23 @@ export default function Dashboard() {
             <Badge color="#22c55e">Live Updates</Badge>
           </div>
           <ActivityItem
-            icon="📖" iconBg="#f0f0ff"
-            title='"Design Patterns" issued to Elena V.'
-            sub="Reference ID: #LMS-#8341 • Due in 14 days"
-            time="3 min ago"
-          />
-          <ActivityItem
             icon="👤" iconBg="#f0fdf4"
-            title="New faculty member registered"
-            sub="Dr. Marcus Sterling • Foundation Dept."
-            time="9 min ago"
+            title="New user registered"
+            sub={`${stats.pendingApprovals} pending approvals waiting`}
+            time="Recently"
           />
           <ActivityItem
-            icon="⚠️" iconBg="#fff5f5"
-            title='Return overdue "Classical Physics"'
-            sub="User: James Chen • 2 days past due"
-            time="1 hr ago"
-            isOverdue
+            icon="📚" iconBg="#f0f0ff"
+            title={`${booksCount} total books in catalog`}
+            sub="Manage collection"
+            time="Updated"
+          />
+          <ActivityItem
+            icon="⚡" iconBg="#fff5f5"
+            title={`${stats.activeToday} active users today`}
+            sub="Normal traffic flow"
+            time="Live"
+            isOverdue={false}
           />
         </SectionCard>
 
@@ -276,8 +341,9 @@ export default function Dashboard() {
             }}>+</div>
           </div>
           <p style={{ fontSize: 12, color: "rgba(221,214,254,0.90)", lineHeight: 1.65, margin: "0 0 18px" }}>
-            The "Research Methodology" collection has seen a <strong style={{ color: "#fff" }}>+45%</strong> boost in
-            student engagement this week. Consider adding more copies to the Reserved Section.
+            The library has <strong style={{ color: "#fff" }}>{stats.totalMembers} total members</strong> with{" "}
+            <strong style={{ color: "#fff" }}>{stats.pendingApprovals} pending approvals</strong>.{" "}
+            Consider reviewing pending registrations.
           </p>
           <button style={{
             width: "100%", padding: "9px 0", border: "1.5px solid rgba(255,255,255,0.3)",
@@ -288,7 +354,7 @@ export default function Dashboard() {
           onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.2)")}
           onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.12)")}
           >
-            Expand Collection
+            View Details
           </button>
         </div>
       </div>
