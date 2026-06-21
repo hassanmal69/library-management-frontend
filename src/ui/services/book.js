@@ -1,30 +1,60 @@
+import fetchClient from "../utils/interceptor";
 
+// 📚 GET all books
 export const getBooks = async () => {
-    try {
+  try {
+    const data = await fetchClient("/books");
+    return data.data;
+  } catch (error) {
+    console.log(error);
+    return { error: "Failed to fetch books" };
+  }
+};
 
-        const res = await fetch(
-            "http://localhost:4000/api/v1/books",
-            {
-                method: "GET",
-            }
-        );
+export const getBookById = async (id) => {
+  try {
+    const data = await fetchClient(`/books/${id}`);
+    return data.data;
+  } catch (error) {
+    console.log(error);
+    return { error: "Failed to fetch book" };
+  }
+};
 
-        const data = await res.json();
+export const createBook = async (payload) => {
+  try {
+    const data = await fetchClient("/books", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return data.data;
+  } catch (error) {
+    console.log(error);
+    return { error: "Failed to create book" };
+  }
+};
 
-        if (res.ok) {
-            console.log("Success:", data);
-        } else {
-            console.log("Error:", data);
-        }
+export const updateBook = async (id, payload) => {
+  try {
+    const data = await fetchClient(`/books/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+    return data.data;
+  } catch (error) {
+    console.log(error);
+    return { error: "Failed to update book" };
+  }
+};
 
-        return data.data;
-
-    } catch (error) {
-
-        console.log(error);
-
-        return {
-            error: "Something went wrong"
-        };
-    }
+export const deleteBook = async (id) => {
+  try {
+    const data = await fetchClient(`/books/${id}`, {
+      method: "DELETE",
+    });
+    return data.data;
+  } catch (error) {
+    console.log(error);
+    return { error: "Failed to delete book" };
+  }
 };

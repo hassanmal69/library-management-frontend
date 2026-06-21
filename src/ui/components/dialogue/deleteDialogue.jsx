@@ -37,7 +37,6 @@ export default function ConfirmDeleteDialog({
   itemMeta,
 }) {
   const confirmBtnRef = useRef(null);
-
   // Focus confirm button when opened (accessibility)
   useEffect(() => {
     if (isOpen) {
@@ -115,7 +114,10 @@ export default function ConfirmDeleteDialog({
             </button>
             <button
               ref={confirmBtnRef}
-              onClick={() => { onConfirm(); onClose(); }}
+              onClick={() => {
+                  console.log("DELETE BUTTON CLICKED");
+
+                onConfirm(); onClose(); }}
               className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-red-500 hover:bg-red-600 active:scale-95 transition-all shadow-sm shadow-red-200"
             >
               {confirmLabel}
