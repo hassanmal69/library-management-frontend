@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { issueBook, returnBook, getActiveLoans, getLoansByUser, getOverdueLoans, getLoanStats } from "../../services/loan";
 
 // ─── Reusable Primitives ────────────────────────────────────────────────────
 
@@ -83,15 +84,15 @@ function MemberCard({ member, onClear }) {
         <div className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5">
             <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-violet-500 flex items-center justify-center text-white text-xs font-bold">
-                    {member.name.charAt(0)}
+                    {member.name?.charAt(0) || "?"}
                 </div>
                 <div>
                     <p className="text-sm font-semibold text-slate-700">{member.name}</p>
-                    <p className="text-[11px] text-slate-400">{member.id} · {member.books} books active</p>
+                    <p className="text-[11px] text-slate-400">{member.memberId || member.id} · {member.activeLoans || 0} books active</p>
                 </div>
             </div>
             <div className="flex items-center gap-2">
-                <Badge color="green">Active</Badge>
+                <Badge color="green">{member.status || "Active"}</Badge>
                 <button onClick={onClear} className="text-slate-300 hover:text-slate-500 transition-colors text-xs">✕</button>
             </div>
         </div>
@@ -106,15 +107,15 @@ function BookCard({ book, onClear }) {
         <div className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5">
             <div className="flex items-center gap-2.5">
                 <div className="w-8 h-10 rounded bg-gradient-to-b from-indigo-400 to-blue-600 flex items-center justify-center text-white text-[9px] font-bold text-center leading-tight px-0.5">
-                    {book.title.slice(0, 4)}
+                    {book.title?.slice(0, 4) || "Book"}
                 </div>
                 <div>
                     <p className="text-sm font-semibold text-slate-700">{book.title}</p>
-                    <p className="text-[11px] text-slate-400">{book.author} · {book.pages} pages</p>
+                    <p className="text-[11px] text-slate-400">{book.author} · {book.publishedYear || "N/A"}</p>
                 </div>
             </div>
             <div className="flex items-center gap-2">
-                <Badge color="blue">{book.status}</Badge>
+                <Badge color="green">{book.available > 0 ? "Available" : "Issued"}</Badge>
                 <button onClick={onClear} className="text-slate-300 hover:text-slate-500 transition-colors text-xs">✕</button>
             </div>
         </div>
@@ -161,38 +162,44 @@ function StatCard({ label, value, sub, icon, color = "blue" }) {
     );
 }
 
-// ─── Return Asset Card ────────────────────────────────────────────────────────
+// ─── Return Book Card ────────────────────────────────────────────────────────
 
-function ReturnBookCard({ book }) {
-    if (!book) return null;
+function ReturnBookCard({ loan }) {
+    if (!loan) return null;
+    const dueDate = new Date(loan.dueDate).toLocaleDateString();
+    const isOverdue = new Date() > new Date(loan.dueDate);
+    const daysOverdue = Math.ceil((new Date() - new Date(loan.dueDate)) / (1000 * 60 * 60 * 24));
+    
     return (
         <div className="flex items-center gap-3 bg-slate-50 border border-slate-100 rounded-xl p-3">
             <div className="w-10 h-14 rounded bg-gradient-to-b from-slate-600 to-slate-800 flex items-center justify-center text-white text-[9px] font-bold text-center leading-tight px-0.5 flex-shrink-0">
-                {book.title.slice(0, 4)}
+                {loan.book?.title?.slice(0, 4) || "Book"}
             </div>
             <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-slate-800 truncate">{book.title}</p>
-                <p className="text-[11px] text-slate-500">Issued to {book.issuedTo}</p>
+                <p className="text-sm font-bold text-slate-800 truncate">{loan.book?.title || `Book #${loan.bookId}`}</p>
+                <p className="text-[11px] text-slate-500">Issued to {loan.user?.name || `User #${loan.userId}`}</p>
                 <div className="flex items-center gap-3 mt-1">
                     <div>
                         <p className="text-[10px] text-slate-400">Due Date</p>
-                        <p className="text-[11px] font-semibold text-slate-600">{book.dueDate}</p>
+                        <p className="text-[11px] font-semibold text-slate-600">{dueDate}</p>
                     </div>
                     <div>
-                        <p className="text-[10px] text-slate-400">Loan Duration</p>
-                        <p className="text-[11px] font-semibold text-slate-600">{book.loanDuration}</p>
+                        <p className="text-[10px] text-slate-400">Status</p>
+                        <Badge color={isOverdue ? "red" : "green"}>{loan.status}</Badge>
                     </div>
                 </div>
             </div>
-            {book.overdueDays > 0 && (
+            {isOverdue && (
                 <div className="text-right flex-shrink-0">
                     <p className="text-[10px] text-red-400 font-semibold">OVERDUE</p>
-                    <p className="text-lg font-black text-red-500">{book.overdueDays}d</p>
+                    <p className="text-lg font-black text-red-500">{daysOverdue}d</p>
                 </div>
             )}
         </div>
     );
 }
+
+// ─── Penalty Card ─────────────────────────────────────────────────────────────
 
 function PenaltyCard({ amount, perDay }) {
     if (!amount) return null;
@@ -202,88 +209,86 @@ function PenaltyCard({ amount, perDay }) {
                 <span className="text-lg">⚠️</span>
                 <div>
                     <p className="text-xs font-bold text-red-600">Penalty Fine Accrued</p>
-                    <p className="text-[10px] text-red-400">${perDay}/day · {Math.round(amount / perDay)} days</p>
+                    <p className="text-[10px] text-red-400">Rs. {perDay}/day · {Math.round(amount / perDay)} days</p>
                 </div>
             </div>
-            <span className="text-2xl font-black text-red-500">${amount.toFixed(2)}</span>
+            <span className="text-2xl font-black text-red-500">Rs. {amount.toFixed(2)}</span>
         </div>
     );
 }
 
-// ─── MOCK DATA ─────────────────────────────────────────────────────────────────
-
-const MEMBERS = {
-    "RINA001": { name: "Rina Rodriguez", id: "ID#LIB-2024-0042", books: 3 },
-    "MARC002": { name: "Marcus Chan", id: "ID#LIB-2024-0091", books: 1 },
-    "AYLA003": { name: "Ayla Torres", id: "ID#LIB-2024-0057", books: 2 },
-    "AYLA001": { name: "Ayla pathan", id: "ID#LIB-2024-0057", books: 9 },
-};
-
-const BOOKS = {
-    "978-0-061-96436-9": { title: "Principles of Modern Physics", author: "R. Leighton", pages: "592", status: "Available" },
-    "978-0-385-54734-7": { title: "The Silent Patient", author: "A. Michaelides", pages: "336", status: "Available" },
-    "978-0-525-55360-5": { title: "Atomic Habits", author: "James Clear", pages: "320", status: "Available" },
-};
-
-const RETURN_BOOKS = {
-    "RET-001": {
-        title: "The Silent Patient",
-        issuedTo: "Marcus Chan",
-        dueDate: "Oct 06, 2025",
-        loanDuration: "16 Days Total",
-        overdueDays: 4,
-        penalty: 8.00,
-        penaltyPerDay: 2.00,
-    },
-    "RET-002": {
-        title: "Atomic Habits",
-        issuedTo: "Rina Rodriguez",
-        dueDate: "Nov 12, 2025",
-        loanDuration: "14 Days Total",
-        overdueDays: 0,
-        penalty: 0,
-        penaltyPerDay: 2.00,
-    },
-};
-
 // ─── ISSUE NEW BOOK PANEL ──────────────────────────────────────────────────────
 
-function IssueNewBook() {
-    const [memberQuery, setMemberQuery] = useState("");
-    const [bookQuery, setBookQuery] = useState("");
+function IssueNewBook({ onIssueSuccess, activeLoans }) {
+    const [userId, setUserId] = useState("");
+    const [bookId, setBookId] = useState("");
+    const [days, setDays] = useState("14");
     const [selectedMember, setSelectedMember] = useState(null);
     const [selectedBook, setSelectedBook] = useState(null);
-    const [dueDate, setDueDate] = useState("14 Days (Oct 24, 2025)");
     const [toast, setToast] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [users, setUsers] = useState([]);
+    const [books, setBooks] = useState([]);
+
+    // Fetch users and books for search
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const [userRes, bookRes] = await Promise.all([
+                    fetch("http://localhost:4000/api/v1/users").then(r => r.json()),
+                    fetch("http://localhost:4000/api/v1/books").then(r => r.json())
+                ]);
+                if (userRes.success) setUsers(userRes.data || []);
+                if (bookRes.success) setBooks(bookRes.data || []);
+            } catch (error) {
+                console.error("Error fetching data:", error);
+            }
+        };
+        fetchData();
+    }, []);
 
     const handleMemberSearch = (e) => {
         const q = e.target.value;
-        setMemberQuery(q);
-        const found = Object.values(MEMBERS).find(
-            (m) => m.name.toLowerCase().includes(q.toLowerCase()) || m.id.toLowerCase().includes(q.toLowerCase())
+        setUserId(q);
+        const found = users.find(
+            (u) => u.name?.toLowerCase().includes(q.toLowerCase()) || 
+                   u.email?.toLowerCase().includes(q.toLowerCase()) ||
+                   u.memberId?.toLowerCase().includes(q.toLowerCase())
         );
         if (found && q.length > 2) setSelectedMember(found);
+        else if (q.length === 0) setSelectedMember(null);
     };
 
     const handleBookSearch = (e) => {
         const q = e.target.value;
-        setBookQuery(q);
-        const found = Object.values(BOOKS).find(
-            (b) => b.title.toLowerCase().includes(q.toLowerCase()) || q.startsWith("978")
+        setBookId(q);
+        const found = books.find(
+            (b) => b.title?.toLowerCase().includes(q.toLowerCase()) || 
+                   b.isbn?.includes(q) ||
+                   b.author?.toLowerCase().includes(q.toLowerCase())
         );
         if (found && q.length > 2) setSelectedBook(found);
+        else if (q.length === 0) setSelectedBook(null);
     };
 
-    const handleIssue = () => {
+    const handleIssue = async () => {
         if (!selectedMember || !selectedBook) {
             setToast({ type: "error", message: "Please select a member and a book before issuing." });
             return;
         }
-        setToast({ type: "success", message: `"${selectedBook.title}" issued to ${selectedMember.name} successfully!` });
-        setSelectedMember(null);
-        setSelectedBook(null);
-        setMemberQuery("");
-        setBookQuery("");
+        setLoading(true);
+        const res = await issueBook(selectedMember.id, selectedBook.id, parseInt(days) || 14);
+        setLoading(false);
+        if (res.success) {
+            setToast({ type: "success", message: `"${selectedBook.title}" issued to ${selectedMember.name} successfully!` });
+            onIssueSuccess();
+            setSelectedMember(null);
+            setSelectedBook(null);
+            setUserId("");
+            setBookId("");
+        } else {
+            setToast({ type: "error", message: res.message || res.error || "Failed to issue book" });
+        }
     };
 
     return (
@@ -299,27 +304,27 @@ function IssueNewBook() {
                 <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Member Identification</p>
 
                 <InputField
-                    placeholder="Scan Student ID or enter name..."
+                    placeholder="Search by name, email, or Member ID..."
                     icon="👤"
-                    value={memberQuery}
+                    value={userId}
                     onChange={handleMemberSearch}
                 />
 
                 {selectedMember && (
-                    <MemberCard member={selectedMember} onClear={() => { setSelectedMember(null); setMemberQuery(""); }} />
+                    <MemberCard member={selectedMember} onClear={() => { setSelectedMember(null); setUserId(""); }} />
                 )}
 
                 <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-1">Asset Details</p>
 
                 <InputField
-                    placeholder="ISBN, Title, or Accession Number..."
+                    placeholder="Search by title, author, or ISBN..."
                     icon="📖"
-                    value={bookQuery}
+                    value={bookId}
                     onChange={handleBookSearch}
                 />
 
                 {selectedBook && (
-                    <BookCard book={selectedBook} onClear={() => { setSelectedBook(null); setBookQuery(""); }} />
+                    <BookCard book={selectedBook} onClear={() => { setSelectedBook(null); setBookId(""); }} />
                 )}
 
                 <div className="flex flex-col gap-1">
@@ -327,10 +332,11 @@ function IssueNewBook() {
                     <div className="flex items-center gap-2 border border-slate-200 rounded-xl px-3 py-2.5 bg-slate-50">
                         <span className="text-slate-400 text-sm">📅</span>
                         <input
-                            type="text"
-                            value={dueDate}
-                            onChange={(e) => setDueDate(e.target.value)}
+                            type="number"
+                            value={days}
+                            onChange={(e) => setDays(e.target.value)}
                             className="bg-transparent flex-1 text-sm text-slate-700 outline-none"
+                            placeholder="Days (default 14)"
                         />
                     </div>
                 </div>
@@ -339,8 +345,8 @@ function IssueNewBook() {
                     <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
                 )}
 
-                <PrimaryButton onClick={handleIssue}>
-                    Issue Book Asset
+                <PrimaryButton onClick={handleIssue} disabled={loading}>
+                    {loading ? "Processing..." : "Issue Book Asset"}
                 </PrimaryButton>
             </div>
         </SectionCard>
@@ -349,45 +355,59 @@ function IssueNewBook() {
 
 // ─── RETURN ASSET PANEL ────────────────────────────────────────────────────────
 
-function ReturnAsset() {
-    const [barcode, setBarcode] = useState("");
-    const [scannedBook, setScannedBook] = useState(null);
+function ReturnAsset({ onReturnSuccess }) {
+    const [loanId, setLoanId] = useState("");
+    const [selectedLoan, setSelectedLoan] = useState(null);
     const [toast, setToast] = useState(null);
     const [paid, setPaid] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [allLoans, setAllLoans] = useState([]);
+
+    useEffect(() => {
+        const fetchLoans = async () => {
+            try {
+                const res = await fetch("http://localhost:4000/api/v1/loans");
+                const data = await res.json();
+                if (data.success) setAllLoans(data.data || []);
+            } catch (error) {
+                console.error("Error fetching loans:", error);
+            }
+        };
+        fetchLoans();
+    }, []);
 
     const handleScan = (e) => {
         const q = e.target.value;
-        setBarcode(q);
+        setLoanId(q);
         setPaid(false);
-        const found = RETURN_BOOKS[q.trim()];
-        if (found) setScannedBook(found);
-        else if (q.length === 0) setScannedBook(null);
+        const found = allLoans.find(l => l.id === parseInt(q) || l.id === q);
+        if (found && q.length > 0) setSelectedLoan(found);
+        else if (q.length === 0) setSelectedLoan(null);
     };
 
-    const handlePayNow = () => {
-        setPaid(true);
-        setToast({ type: "success", message: `Penalty of $${scannedBook.penalty.toFixed(2)} paid. Asset RET-001 has been updated in the catalog.` });
-    };
-
-    const handleWaiveFine = () => {
-        setPaid(true);
-        setToast({ type: "info", message: `Fine waived for "${scannedBook.title}". Return processed.` });
-    };
-
-    const handleReturn = () => {
-        if (!scannedBook) {
-            setToast({ type: "error", message: "Please scan a valid barcode to return an asset." });
+    const handleReturn = async () => {
+        if (!selectedLoan) {
+            setToast({ type: "error", message: "Please scan a valid Loan ID." });
             return;
         }
-        if (scannedBook.overdueDays > 0 && !paid) {
-            setToast({ type: "error", message: "Please resolve the penalty fine before processing the return." });
-            return;
+        setLoading(true);
+        const res = await returnBook(selectedLoan.id);
+        setLoading(false);
+        if (res.success) {
+            setToast({ type: "success", message: `"${selectedLoan.book?.title || `Loan #${selectedLoan.id}`}" returned successfully!` });
+            onReturnSuccess();
+            setSelectedLoan(null);
+            setLoanId("");
+            setPaid(false);
+        } else {
+            setToast({ type: "error", message: res.message || res.error || "Failed to return book" });
         }
-        setToast({ type: "success", message: `"${scannedBook.title}" returned successfully!` });
-        setScannedBook(null);
-        setBarcode("");
-        setPaid(false);
     };
+
+    const dueDate = selectedLoan ? new Date(selectedLoan.dueDate) : null;
+    const isOverdue = dueDate ? new Date() > dueDate : false;
+    const daysOverdue = isOverdue ? Math.ceil((new Date() - dueDate) / (1000 * 60 * 60 * 24)) : 0;
+    const fineAmount = daysOverdue * 10;
 
     return (
         <SectionCard
@@ -402,23 +422,19 @@ function ReturnAsset() {
                 <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Scan or Identification</p>
 
                 <InputField
-                    placeholder="Scan Book Barcode... (try: RET-001 or RET-002)"
+                    placeholder="Enter Loan ID to return..."
                     icon="⊞"
-                    value={barcode}
+                    value={loanId}
                     onChange={handleScan}
                 />
 
-                {scannedBook && (
+                {selectedLoan && (
                     <>
-                        <ReturnBookCard book={scannedBook} />
+                        <ReturnBookCard loan={selectedLoan} />
 
-                        {scannedBook.overdueDays > 0 && !paid && (
+                        {isOverdue && !paid && (
                             <>
-                                <PenaltyCard amount={scannedBook.penalty} perDay={scannedBook.penaltyPerDay} />
-                                <div className="flex gap-2">
-                                    <SecondaryButton onClick={handlePayNow} variant="danger">Pay Now</SecondaryButton>
-                                    <SecondaryButton onClick={handleWaiveFine} variant="default">Waive Fine</SecondaryButton>
-                                </div>
+                                <PenaltyCard amount={fineAmount} perDay={10} />
                             </>
                         )}
                     </>
@@ -428,9 +444,9 @@ function ReturnAsset() {
                     <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
                 )}
 
-                {scannedBook && (
-                    <PrimaryButton onClick={handleReturn} className="bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200">
-                        Process Return
+                {selectedLoan && (
+                    <PrimaryButton onClick={handleReturn} disabled={loading} className="bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200">
+                        {loading ? "Processing..." : "Process Return"}
                     </PrimaryButton>
                 )}
             </div>
@@ -440,28 +456,28 @@ function ReturnAsset() {
 
 // ─── STATS ROW ────────────────────────────────────────────────────────────────
 
-function StatsRow() {
+function StatsRow({ stats }) {
     return (
         <div className="grid grid-cols-3 gap-4">
             <StatCard
-                label="Active Loans Today"
-                value="42"
-                sub="12% increase from yesterday"
+                label="Active Loans"
+                value={stats.totalIssued || 0}
+                sub={`${stats.totalOverdue || 0} overdue`}
                 icon="📚"
                 color="blue"
             />
             <StatCard
-                label="Pending Returns"
-                value="18"
-                sub="3 overdue · 15 on time"
+                label="Total Returned"
+                value={stats.totalReturned || 0}
+                sub="Books returned"
                 icon="🔁"
                 color="amber"
             />
             <StatCard
-                label="Digital Curator Score"
-                value="98%"
-                sub="Catalog health is excellent"
-                icon="⭐"
+                label="Total Fines"
+                value={`Rs. ${stats.totalFineCollected || 0}`}
+                sub="Collected from overdue"
+                icon="💰"
                 color="violet"
             />
         </div>
@@ -484,6 +500,31 @@ function PageHeader() {
 // ─── MAIN OUTLET ──────────────────────────────────────────────────────────────
 
 export default function CirculationDesk() {
+    const [stats, setStats] = useState({
+        totalIssued: 0,
+        totalOverdue: 0,
+        totalReturned: 0,
+        totalFineCollected: 0
+    });
+    const [refresh, setRefresh] = useState(false);
+
+    const fetchStats = async () => {
+        try {
+            const res = await getLoanStats();
+            if (res.success) setStats(res.data);
+        } catch (error) {
+            console.error("Error fetching stats:", error);
+        }
+    };
+
+    useEffect(() => {
+        fetchStats();
+    }, [refresh]);
+
+    const handleRefresh = () => {
+        setRefresh(prev => !prev);
+    };
+
     return (
         <div className="min-h-screen bg-slate-50 p-6 font-sans">
             <div className="max-w-5xl mx-auto flex flex-col gap-5">
@@ -491,12 +532,12 @@ export default function CirculationDesk() {
 
                 {/* Main two-column panel */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    <IssueNewBook />
-                    <ReturnAsset />
+                    <IssueNewBook onIssueSuccess={handleRefresh} />
+                    <ReturnAsset onReturnSuccess={handleRefresh} />
                 </div>
 
                 {/* Stats row */}
-                <StatsRow />
+                <StatsRow stats={stats} />
             </div>
         </div>
     );

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { getUserStats } from "../../services/users";
 import { getBooks } from "../../services/book";
+import { getLoanStats } from "../../services/loan";
 
 // ─── Stat Card Component ────────────────────────────────────────────────────
 function StatCard({ label, value, change, changeType, iconBg, icon }) {
@@ -137,6 +138,12 @@ export default function Dashboard() {
     pendingApprovals: 0,
     blockedUsers: 0,
   });
+  const [loanStats, setLoanStats] = useState({
+    totalIssued: 0,
+    totalOverdue: 0,
+    totalReturned: 0,
+    totalFineCollected: 0,
+  });
   const [booksCount, setBooksCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -153,6 +160,12 @@ export default function Dashboard() {
             pendingApprovals: userStats.pendingApprovals || 0,
             blockedUsers: userStats.blockedUsers || 0,
           });
+        }
+
+        // Fetch loan stats
+        const loans = await getLoanStats();
+        if (loans && loans.success) {
+          setLoanStats(loans.data);
         }
 
         // Fetch books count
@@ -217,8 +230,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Stat Cards - Dynamic from API */}
-      <div style={{ display: "flex", gap: 14, marginBottom: 20 }}>
+      {/* Stat Cards - 6 Cards in 2 Rows */}
+      <div style={{ display: "flex", gap: 14, marginBottom: 14 }}>
         <StatCard
           label="Total Books"
           value={booksCount.toLocaleString()}
@@ -253,9 +266,36 @@ export default function Dashboard() {
         />
       </div>
 
+      {/* Loan Stats Row */}
+      <div style={{ display: "flex", gap: 14, marginBottom: 20 }}>
+        <StatCard
+          label="Active Loans"
+          value={loanStats.totalIssued?.toLocaleString() || 0}
+          change={`${loanStats.totalOverdue || 0} overdue`}
+          changeType={loanStats.totalOverdue > 0 ? "down" : "up"}
+          iconBg="rgba(59,130,246,0.10)"
+          icon={<svg width="16" height="16" fill="none" stroke="#3b82f6" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>}
+        />
+        <StatCard
+          label="Total Returned"
+          value={loanStats.totalReturned?.toLocaleString() || 0}
+          change="Books returned"
+          changeType="up"
+          iconBg="rgba(16,185,129,0.10)"
+          icon={<svg width="16" height="16" fill="none" stroke="#10b981" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>}
+        />
+        <StatCard
+          label="Total Fines"
+          value={`Rs. ${loanStats.totalFineCollected?.toFixed(2) || 0}`}
+          change="Collected"
+          changeType="up"
+          iconBg="rgba(245,158,11,0.10)"
+          icon={<svg width="16" height="16" fill="none" stroke="#f59e0b" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>}
+        />
+      </div>
+
       {/* Mid row: Trends + Catalog Mix */}
       <div style={{ display: "flex", gap: 14, marginBottom: 20 }}>
-        {/* Borrowing Trends */}
         <SectionCard style={{ flex: "1 1 0" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
             <div>
@@ -276,7 +316,6 @@ export default function Dashboard() {
           <TrendChart />
         </SectionCard>
 
-        {/* Catalog Mix */}
         <SectionCard style={{ width: 230, flexShrink: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: "#111827", marginBottom: 2 }}>Catalog Mix</div>
           <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 14 }}>Category distribution</div>
@@ -295,7 +334,6 @@ export default function Dashboard() {
 
       {/* Bottom row: Activity + Librarian Insight */}
       <div style={{ display: "flex", gap: 14 }}>
-        {/* System Activity */}
         <SectionCard style={{ flex: "1 1 0" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>System Activity</div>
@@ -303,22 +341,22 @@ export default function Dashboard() {
           </div>
           <ActivityItem
             icon="👤" iconBg="#f0fdf4"
-            title="New user registered"
+            title={`${stats.totalMembers} total members`}
             sub={`${stats.pendingApprovals} pending approvals waiting`}
             time="Recently"
           />
           <ActivityItem
             icon="📚" iconBg="#f0f0ff"
             title={`${booksCount} total books in catalog`}
-            sub="Manage collection"
+            sub={`${loanStats.totalIssued || 0} currently issued`}
             time="Updated"
           />
           <ActivityItem
-            icon="⚡" iconBg="#fff5f5"
-            title={`${stats.activeToday} active users today`}
-            sub="Normal traffic flow"
+            icon="💰" iconBg="#fef3c7"
+            title={`Rs. ${loanStats.totalFineCollected?.toFixed(2) || 0} fines collected`}
+            sub={`${loanStats.totalOverdue || 0} overdue books`}
             time="Live"
-            isOverdue={false}
+            isOverdue={loanStats.totalOverdue > 0}
           />
         </SectionCard>
 
@@ -342,8 +380,9 @@ export default function Dashboard() {
           </div>
           <p style={{ fontSize: 12, color: "rgba(221,214,254,0.90)", lineHeight: 1.65, margin: "0 0 18px" }}>
             The library has <strong style={{ color: "#fff" }}>{stats.totalMembers} total members</strong> with{" "}
-            <strong style={{ color: "#fff" }}>{stats.pendingApprovals} pending approvals</strong>.{" "}
-            Consider reviewing pending registrations.
+            <strong style={{ color: "#fff" }}>{loanStats.totalIssued || 0} active loans</strong> and{" "}
+            <strong style={{ color: "#fff" }}>{loanStats.totalOverdue || 0} overdue</strong>.{" "}
+            Consider reviewing overdue items.
           </p>
           <button style={{
             width: "100%", padding: "9px 0", border: "1.5px solid rgba(255,255,255,0.3)",
