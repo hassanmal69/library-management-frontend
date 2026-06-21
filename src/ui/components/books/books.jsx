@@ -3,11 +3,15 @@
 //  Requires: ConfirmDeleteDialog.jsx  &  EditDialog.jsx
 // ============================================================
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ConfirmDeleteDialog from "../dialogue/deleteDialogue";
 import EditDialog from "../dialogue/editDialogue";
-import { getBooks } from "../../services/book";
-
+import {
+  getBooks,
+  createBook,
+  updateBook,
+  deleteBook,
+} from "../../services/book";
 // ─────────────────────────────────────────────
 // 1. STAT CARD
 // ─────────────────────────────────────────────
@@ -178,7 +182,6 @@ function Pagination({ current, total, totalEntries, perPage, onPageChange }) {
   const from = (current - 1) * perPage + 1;
   const to = Math.min(current * perPage, totalEntries);
   const pages = [1, 2, 3, "…", total];
-
   return (
     <div className="flex items-center justify-between px-4 py-3.5 border-t border-gray-100 text-xs text-gray-400">
       <span>Showing {from} to {to} of {totalEntries.toLocaleString()} entries</span>
@@ -268,20 +271,20 @@ function BookViewDrawer({ book, onClose }) {
 const CATEGORY_OPTIONS = ["All Categories", "Art & Design", "Philosophy", "Science", "History"];
 const AVAILABILITY_OPTIONS = ["All Status", "Available", "Issued", "Maintenance"];
 
-function BookTable({ books: initialBooks = [], totalEntries = 0 }) {
+  function BookTable({
+  books: initialBooks,
+  totalEntries,
+  onDelete,
+  onEdit,
+}){
   const [books, setBooks] = useState(initialBooks);
   const [category, setCategory] = useState("All Categories");
   const [availability, setAvail] = useState("All Status");
   const [view, setView] = useState("list");
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(2);
 
   // Dialog state
   const [viewBook, setViewBook] = useState(null);
-  const [editBook, setEditBook] = useState(null);
-  const [editOpen, setEditOpen] = useState(false);
-  const [deleteBook, setDeleteBook] = useState(null);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-
   const PER_PAGE = 4;
 
   const filtered = books.filter((b) => {
@@ -289,18 +292,6 @@ function BookTable({ books: initialBooks = [], totalEntries = 0 }) {
     const statMatch = availability === "All Status" || b.status === availability;
     return catMatch && statMatch;
   });
-
-  const handleSave = (updated) => {
-    setBooks((prev) =>
-      prev.some((b) => b.id === updated.id)
-        ? prev.map((b) => (b.id === updated.id ? { ...b, ...updated } : b))
-        : [...prev, updated]
-    );
-  };
-
-  const handleConfirmDelete = () => {
-    setBooks((prev) => prev.filter((b) => b.id !== deleteBook?.id));
-  };
 
   return (
     <>
@@ -340,8 +331,8 @@ function BookTable({ books: initialBooks = [], totalEntries = 0 }) {
                   key={book.id}
                   book={book}
                   onView={() => setViewBook(book)}
-                  onEdit={() => { setEditBook(book); setEditOpen(true); }}
-                  onDelete={() => { setDeleteBook(book); setDeleteOpen(true); }}
+                  onDelete={() => onDelete(book)}
+                  onEdit={() => onEdit(book)}
                 />
               ))
             )}
@@ -352,25 +343,6 @@ function BookTable({ books: initialBooks = [], totalEntries = 0 }) {
 
       {/* ── View Drawer ── */}
       <BookViewDrawer book={viewBook} onClose={() => setViewBook(null)} />
-
-      {/* ── Edit Dialog ── */}
-      <EditDialog
-        isOpen={editOpen}
-        onClose={() => setEditOpen(false)}
-        onSave={handleSave}
-        book={editBook}
-      />
-
-      {/* ── Delete Dialog (reusable — imported from ConfirmDeleteDialog.jsx) ── */}
-      <ConfirmDeleteDialog
-        isOpen={deleteOpen}
-        onClose={() => setDeleteOpen(false)}
-        onConfirm={handleConfirmDelete}
-        title="Delete Book"
-        description="This will permanently remove the book from the library system. All associated records will be lost."
-        confirmLabel="Delete Book"
-        itemMeta={deleteBook ? { label: "Book", value: deleteBook.title } : undefined}
-      />
     </>
   );
 }
@@ -470,46 +442,96 @@ const ACTION_TASKS = [
     ];
   };
 export default function BookManagement() {
-  const [addOpen, setAddOpen] = useState(false);
+    const [addOpen, setAddOpen] = useState(false);
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const [editOpen, setEditOpen] = useState(false);
+  const [editBook, setEditBook] = useState(null);
+
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteBookItem, setDeleteBookItem] = useState(null);
+
+  // ─────────────────────────────
+  // FETCH BOOKS
+  // ─────────────────────────────
+
   const fetchBooks = async () => {
     try {
+      setLoading(true);
+
       const response = await getBooks();
 
-      const formattedBooks = response.map((book) => ({
+      const formatted = response.map((book) => ({
         id: book.id,
         title: book.title,
         edition: book.publishedYear
           ? `${book.publishedYear} Edition`
           : "Unknown Edition",
-
         author: book.author,
-
         category: getRandomCategory(),
-
         isbn: book.isbn,
-
-        status:
-          book.available > 0
-            ? "Available"
-            : "Issued",
-
+        status: book.available > 0 ? "Available" : "Issued",
         thumbEmoji: getRandomEmoji(),
-
         thumbBg: getRandomBg(),
       }));
 
-      setBooks(formattedBooks);
-    } catch (error) {
-      console.error("Failed to fetch books:", error);
+      setBooks(formatted);
+    } catch (err) {
+      console.error("Fetch error:", err);
     } finally {
       setLoading(false);
     }
   };
-  useState(() => {
+
+  useEffect(() => {
     fetchBooks();
   }, []);
+
+  // ─────────────────────────────
+  // CREATE
+  // ─────────────────────────────
+
+  const handleCreate = async (data) => {
+    try {
+      await createBook(data);
+      await fetchBooks();
+      setAddOpen(false);
+    } catch (err) {
+      console.error("Create failed:", err);
+    }
+  };
+
+  // ─────────────────────────────
+  // UPDATE
+  // ─────────────────────────────
+
+  const handleUpdate = async (data) => {
+    try {
+      await updateBook(data.id, data);
+      await fetchBooks();
+      setEditOpen(false);
+      setEditBook(null);
+    } catch (err) {
+      console.error("Update failed:", err);
+    }
+  };
+
+  // ─────────────────────────────
+  // DELETE
+  // ─────────────────────────────
+
+const handleDelete = async () => {
+  try {
+    await deleteBook(deleteBookItem.id);
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+  // ─────────────────────────────
+  // LOADING STATE
+  // ─────────────────────────────
 
   if (loading) {
     return (
@@ -574,8 +596,15 @@ export default function BookManagement() {
       <BookTable
         books={books}
         totalEntries={books.length}
+        onDelete={(book) => {
+          setDeleteBookItem(book);
+          setDeleteOpen(true);
+        }}
+        onEdit={(book) => {
+          setEditBook(book);
+          setEditOpen(true);
+        }}
       />
-
       {/* Bottom */}
       <div className="grid grid-cols-1 md:grid-cols-[1fr_1.8fr] gap-4 mt-5">
 
@@ -587,11 +616,36 @@ export default function BookManagement() {
       </div>
 
       {/* Add Dialog */}
+
+      {/* ADD */}
       <EditDialog
         isOpen={addOpen}
         onClose={() => setAddOpen(false)}
-        onSave={(newBook) => console.log(newBook)}
+        onSave={handleCreate}
         book={null}
+      />
+
+      {/* EDIT */}
+      <EditDialog
+        isOpen={editOpen}
+        onClose={() => setEditOpen(false)}
+        onSave={handleUpdate}
+        book={editBook}
+      />
+
+      {/* DELETE */}
+      <ConfirmDeleteDialog
+        isOpen={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        onConfirm={handleDelete}
+        title="Delete Book"
+        description="This action cannot be undone."
+        confirmLabel="Delete"
+        itemMeta={
+          deleteBookItem
+            ? { label: "Book", value: deleteBookItem.title }
+            : undefined
+        }
       />
     </div>
   );
